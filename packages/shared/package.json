@@ -14,8 +14,13 @@
     "build": "echo \"no build yet\" && exit 0",
     "clean": "rm -rf .turbo dist"
   },
+  "dependencies": {
+    "@pt/db": "workspace:*",
+    "zod": "^3.24.1"
+  },
   "devDependencies": {
     "@pt/config": "workspace:*",
+    "@types/node": "^20.17.10",
     "@typescript-eslint/eslint-plugin": "^8.18.0",
     "@typescript-eslint/parser": "^8.18.0",
     "eslint": "^8.57.1",

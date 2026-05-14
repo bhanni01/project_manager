@@ -7,19 +7,39 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "prisma": {
+    "schema": "prisma/schema.prisma",
+    "seed": "tsx prisma/seed.ts"
+  },
   "scripts": {
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "echo \"no tests yet\" && exit 0",
-    "build": "echo \"no build yet\" && exit 0",
-    "clean": "rm -rf .turbo dist"
+    "build": "prisma generate",
+    "clean": "rm -rf .turbo dist",
+    "postinstall": "prisma generate",
+    "db:generate": "prisma generate",
+    "db:migrate": "dotenv -e ../../.env -- prisma migrate dev",
+    "db:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
+    "db:reset": "dotenv -e ../../.env -- prisma migrate reset",
+    "db:seed": "dotenv -e ../../.env -- prisma db seed",
+    "db:studio": "dotenv -e ../../.env -- prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.1.0",
+    "bcryptjs": "^2.4.3"
   },
   "devDependencies": {
     "@pt/config": "workspace:*",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.17.10",
     "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "dotenv-cli": "^7.4.4",
     "@typescript-eslint/parser": "^8.18.0",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^9.1.0",
+    "prisma": "^6.1.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
 }

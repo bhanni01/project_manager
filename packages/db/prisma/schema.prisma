@@ -1,0 +1,268 @@
+// Project Tracker — full schema. Field names follow docs/database.md.
+// Derived values (currentContractAmount, revisedCompletionDate, financialProgress,
+// currentFYProgress, surplusDeficit) are NOT stored — computed on read by @pt/calc.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ENGINEER
+  PROJECT_MANAGER
+}
+
+enum Infrastructure {
+  ROAD
+  BRIDGE
+}
+
+enum ProjectType {
+  MULTIYEAR
+  SOURCE_APPROVED
+  YEARLY_TENDERED
+}
+
+enum ProjectStatus {
+  RUNNING
+  COMPLETED
+}
+
+// ---------------------------------------------------------------------------
+// Auth — User + Auth.js standard tables
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(ENGINEER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  projects     Project[]      @relation("ProjectEngineer")
+  closedFYs    FiscalYear[]   @relation("FiscalYearClosedBy")
+  auditEvents  AuditEvent[]   @relation("AuditActor")
+  accounts     Account[]
+  sessions     Session[]
+}
+
+// Auth.js standard model — kept for adapter compatibility even though we
+// use JWT sessions with the Credentials provider.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Fiscal Year
+// ---------------------------------------------------------------------------
+
+model FiscalYear {
+  id         String    @id @default(cuid())
+  label      String    @unique // e.g. "2082/83"
+  startDate  DateTime  @db.Date
+  endDate    DateTime  @db.Date
+  isCurrent  Boolean   @default(false)
+  closedAt   DateTime?
+  closedById String?
+  createdAt  DateTime  @default(now())
+
+  closedBy  User?                @relation("FiscalYearClosedBy", fields: [closedById], references: [id])
+  snapshots FiscalYearSnapshot[]
+
+  @@index([isCurrent])
+  // Partial unique index "one_current_fy" added via raw migration so only one FY may be current.
+}
+
+// ---------------------------------------------------------------------------
+// Project — engineer-owned core entity
+// ---------------------------------------------------------------------------
+
+model Project {
+  id                              String         @id @default(cuid())
+  projectName                     String
+  infrastructureType              Infrastructure
+  projectType                     ProjectType
+  status                          ProjectStatus  @default(RUNNING)
+
+  engineerId                      String
+  engineer                        User           @relation("ProjectEngineer", fields: [engineerId], references: [id])
+
+  // Cost (Section 2)
+  originalContractPrice           Decimal        @db.Decimal(18, 2)
+  priceEscalation                 Decimal?       @db.Decimal(18, 2)
+  contingencies                   Decimal?       @db.Decimal(18, 2)
+
+  // Time (Section 3)
+  contractDate                    DateTime       @db.Date
+  intendedCompletionDate          DateTime       @db.Date
+  completedAt                     DateTime?
+
+  // Payment (Section 4)
+  paymentTillLastFY               Decimal        @default(0) @db.Decimal(18, 2)
+  paymentTillDate                 Decimal        @default(0) @db.Decimal(18, 2)
+
+  // Advance Payment (Section 5)
+  totalAdvancePayment             Decimal        @default(0) @db.Decimal(18, 2)
+  outstandingAdvanceTillLastFY    Decimal        @default(0) @db.Decimal(18, 2)
+  outstandingAdvanceTillDate      Decimal        @default(0) @db.Decimal(18, 2)
+
+  // Budget (Section 6)
+  currentFYBudget                 Decimal        @default(0) @db.Decimal(18, 2)
+
+  // Budget Planning (Section 7) — cleared at FY rollover
+  expectedPaymentTillFYEnd        Decimal?       @db.Decimal(18, 2)
+  expectedOutstandingAdvanceFYEnd Decimal?       @db.Decimal(18, 2)
+  nextFYBudgetRequirement         Decimal?       @db.Decimal(18, 2)
+
+  // Progress (Section 8)
+  physicalProgress                Decimal        @default(0) @db.Decimal(5, 2)
+
+  // Lifecycle
+  isArchived                      Boolean        @default(false)
+  archivedAt                      DateTime?
+  archivedById                    String?
+
+  // FY this project's "current" balances belong to. Not the project's full FY history.
+  fiscalYearId                    String?
+
+  createdAt                       DateTime       @default(now())
+  updatedAt                       DateTime       @updatedAt
+
+  variationOrders   VariationOrder[]
+  extensionsOfTime  ExtensionOfTime[]
+  snapshots         FiscalYearSnapshot[]
+
+  @@index([engineerId, isArchived, status])
+  @@index([status])
+  @@index([isArchived])
+  @@index([fiscalYearId])
+  @@index([projectType])
+  @@index([infrastructureType])
+}
+
+// ---------------------------------------------------------------------------
+// Variation Orders
+// ---------------------------------------------------------------------------
+
+model VariationOrder {
+  id                     String   @id @default(cuid())
+  projectId              String
+  voNumber               Int
+  revisedContractAmount  Decimal  @db.Decimal(18, 2)
+  approvalDate           DateTime @db.Date
+  description            String
+  createdAt              DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, voNumber])
+  @@index([projectId])
+}
+
+// ---------------------------------------------------------------------------
+// Extensions of Time
+// ---------------------------------------------------------------------------
+
+model ExtensionOfTime {
+  id              String   @id @default(cuid())
+  projectId       String
+  eotNumber       Int
+  extendedToDate  DateTime @db.Date
+  approvalDate    DateTime @db.Date
+  reason          String
+  createdAt       DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, eotNumber])
+  @@index([projectId])
+}
+
+// ---------------------------------------------------------------------------
+// Fiscal Year Snapshots — frozen end-of-FY rows generated on rollover
+// ---------------------------------------------------------------------------
+
+model FiscalYearSnapshot {
+  id                  String   @id @default(cuid())
+  fiscalYearId        String
+  projectId           String
+  openingPayment      Decimal  @db.Decimal(18, 2)
+  closingPayment      Decimal  @db.Decimal(18, 2)
+  fyPayment           Decimal  @db.Decimal(18, 2)
+  fyBudget            Decimal  @db.Decimal(18, 2)
+  fyAdvanceRecovered  Decimal  @db.Decimal(18, 2)
+  physicalProgress    Decimal  @db.Decimal(5, 2)
+  financialProgress   Decimal  @db.Decimal(5, 2)
+  surplusDeficit      Decimal  @db.Decimal(18, 2)
+  createdAt           DateTime @default(now())
+
+  fiscalYear FiscalYear @relation(fields: [fiscalYearId], references: [id])
+  project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, fiscalYearId])
+  @@index([fiscalYearId])
+}
+
+// ---------------------------------------------------------------------------
+// Audit log — append-only record of mutating actions
+// ---------------------------------------------------------------------------
+
+model AuditEvent {
+  id           String   @id @default(cuid())
+  actorUserId  String?
+  action       String
+  targetType   String?
+  targetId     String?
+  beforeJson   Json?
+  afterJson    Json?
+  createdAt    DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([actorUserId])
+}
