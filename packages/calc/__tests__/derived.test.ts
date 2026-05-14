@@ -32,8 +32,31 @@ describe("computeProjectDerived", () => {
     expect(result.overallFinancialProgressPct.toString()).toBe("25");
     expect(result.currentFYBudgetExpenditureProgressPct.toString()).toBe("30");
     expect(result.currentFYSurplusDeficit.toString()).toBe("1000000");
+    expect(result.revisedCompletionDate).toEqual(new Date("2027-12-31"));
+    expect(result.totalEoTDays).toBe(0);
     expect(result.isOverdue).toBe(false);
     expect(result.isDeficit).toBe(false);
+  });
+
+  it("uses the latest EoT date for revised completion and reports day delta", () => {
+    const result = computeProjectDerived(
+      {
+        originalContractPrice: "10000000",
+        paymentTillDate: "0",
+        paymentTillLastFY: "0",
+        totalAdvancePayment: "0",
+        outstandingAdvanceTillLastFY: "0",
+        outstandingAdvanceTillDate: "0",
+        currentFYBudget: "0",
+        physicalProgress: "0",
+        status: "RUNNING",
+        intendedCompletionDate: new Date("2027-06-30T00:00:00Z"),
+        latestEoTDate: new Date("2027-09-30T00:00:00Z"),
+      },
+      new Date("2026-05-14"),
+    );
+    expect(result.revisedCompletionDate).toEqual(new Date("2027-09-30T00:00:00Z"));
+    expect(result.totalEoTDays).toBe(92);
   });
 
   it("prefers latest VO over original contract price", () => {

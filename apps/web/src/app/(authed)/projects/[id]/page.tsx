@@ -4,6 +4,8 @@ import { prisma } from "@pt/db";
 import { computeProjectDerived } from "@pt/calc";
 import { formatBSDate, formatNepaliCurrency, formatPercent } from "@pt/shared";
 
+import { EoTAddForm } from "@/components/eot-add-form";
+import { VOAddForm } from "@/components/vo-add-form";
 import { requireUser } from "@/lib/auth/guards";
 import { findScopedProjectOr404 } from "@/lib/project/scope";
 import {
@@ -12,23 +14,49 @@ import {
   restoreProjectAction,
 } from "@/lib/project/actions";
 
+type TabKey = "summary" | "vos" | "eots" | "history";
+const TAB_KEYS: TabKey[] = ["summary", "vos", "eots", "history"];
+
 export default async function ProjectDetailPage(props: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string; error?: string; saved?: string }>;
 }) {
   const user = await requireUser();
   const { id } = await props.params;
+  const { tab: tabParam, error, saved } = await props.searchParams;
+  const tab: TabKey = (TAB_KEYS as string[]).includes(tabParam ?? "")
+    ? (tabParam as TabKey)
+    : "summary";
+
   const project = await findScopedProjectOr404(user, id);
 
-  const engineer = await prisma.user.findUnique({
-    where: { id: project.engineerId },
-    select: { name: true, email: true },
-  });
+  const [engineer, vos, eots] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: project.engineerId },
+      select: { name: true, email: true },
+    }),
+    prisma.variationOrder.findMany({
+      where: { projectId: project.id },
+      orderBy: { voNumber: "asc" },
+    }),
+    prisma.extensionOfTime.findMany({
+      where: { projectId: project.id },
+      orderBy: { eotNumber: "asc" },
+    }),
+  ]);
+
+  const latestVO = vos.at(-1);
+  const latestEoT = eots.at(-1);
 
   const derived = computeProjectDerived(
     {
       originalContractPrice: project.originalContractPrice as unknown as string,
       priceEscalation: project.priceEscalation as unknown as string | null,
       contingencies: project.contingencies as unknown as string | null,
+      latestVOAmount: latestVO
+        ? (latestVO.revisedContractAmount as unknown as string)
+        : null,
+      latestEoTDate: latestEoT?.extendedToDate ?? null,
       paymentTillDate: project.paymentTillDate as unknown as string,
       paymentTillLastFY: project.paymentTillLastFY as unknown as string,
       totalAdvancePayment: project.totalAdvancePayment as unknown as string,
@@ -49,6 +77,7 @@ export default async function ProjectDetailPage(props: {
   const isPM = user.role === "PROJECT_MANAGER";
   const canEdit =
     !project.isArchived && (isPM || project.engineerId === user.id);
+  const canAddVOEoT = project.status === "RUNNING" && !project.isArchived;
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-10">
@@ -90,6 +119,18 @@ export default async function ProjectDetailPage(props: {
             <span className="text-white/80">
               {formatBSDate(project.intendedCompletionDate, "long")}
             </span>
+            {derived.totalEoTDays > 0 && (
+              <>
+                {" · "}
+                Revised completion{" "}
+                <span className="text-white/80">
+                  {formatBSDate(derived.revisedCompletionDate, "long")}
+                </span>
+                <span className="ml-1 rounded-md border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-xs text-amber-200">
+                  +{derived.totalEoTDays} days
+                </span>
+              </>
+            )}
           </p>
         </div>
 
@@ -139,12 +180,106 @@ export default async function ProjectDetailPage(props: {
       </header>
 
       <nav className="flex gap-2 border-b border-white/10 text-sm">
-        <Tab active>Summary</Tab>
-        <Tab>VOs</Tab>
-        <Tab>EoTs</Tab>
-        <Tab>FY history</Tab>
+        <TabLink projectId={project.id} active={tab === "summary"} tab="summary">
+          Summary
+        </TabLink>
+        <TabLink projectId={project.id} active={tab === "vos"} tab="vos">
+          VOs ({vos.length})
+        </TabLink>
+        <TabLink projectId={project.id} active={tab === "eots"} tab="eots">
+          EoTs ({eots.length})
+        </TabLink>
+        <TabLink projectId={project.id} active={tab === "history"} tab="history">
+          FY history
+        </TabLink>
       </nav>
 
+      {saved && (
+        <p className="rounded-md border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">
+          Saved.
+        </p>
+      )}
+      {error && (
+        <p
+          role="alert"
+          className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300"
+        >
+          {errorMessage(error)}
+        </p>
+      )}
+
+      {tab === "summary" && (
+        <SummaryTab project={project} derived={derived} />
+      )}
+      {tab === "vos" && (
+        <VOsTab projectId={project.id} vos={vos} canAdd={canAddVOEoT} status={project.status} archived={project.isArchived} />
+      )}
+      {tab === "eots" && (
+        <EoTsTab
+          projectId={project.id}
+          eots={eots}
+          intendedCompletionDate={project.intendedCompletionDate}
+          canAdd={canAddVOEoT}
+          status={project.status}
+          archived={project.isArchived}
+        />
+      )}
+      {tab === "history" && (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-white/60">
+          FY history lands in Step 6 (fiscal year rollover).
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+function TabLink({
+  projectId,
+  tab,
+  active,
+  children,
+}: {
+  projectId: string;
+  tab: TabKey;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  const cls = active
+    ? "border-b-2 border-white px-3 py-2 text-white"
+    : "border-b-2 border-transparent px-3 py-2 text-white/50 hover:text-white";
+  return (
+    <Link href={`/projects/${projectId}?tab=${tab}`} className={cls}>
+      {children}
+    </Link>
+  );
+}
+
+function errorMessage(code: string): string {
+  switch (code) {
+    case "not_running":
+      return "VOs and EoTs can only be added while the project is Running.";
+    case "eot_too_early":
+      return "Extension date must be later than the previous EoT (or intended completion if none).";
+    default:
+      return "Something went wrong.";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Summary tab
+// ---------------------------------------------------------------------------
+
+function SummaryTab({
+  project,
+  derived,
+}: {
+  project: Awaited<ReturnType<typeof findScopedProjectOr404>>;
+  derived: ReturnType<typeof computeProjectDerived>;
+}) {
+  return (
+    <>
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Metric label="Current contract amount" value={formatNepaliCurrency(derived.currentContractAmount)} />
         <Metric label="Total revised cost" value={formatNepaliCurrency(derived.totalRevisedCost)} />
@@ -174,13 +309,167 @@ export default async function ProjectDetailPage(props: {
           <Row k="Next FY budget requirement" v={formatNepaliCurrency(project.nextFYBudgetRequirement as unknown as string)} />
         </dl>
       </section>
-
-      <p className="text-xs text-white/40">
-        VOs, EoTs and FY history tabs become real in Step 5.
-      </p>
-    </div>
+    </>
   );
 }
+
+// ---------------------------------------------------------------------------
+// VOs tab
+// ---------------------------------------------------------------------------
+
+type VORow = {
+  id: string;
+  voNumber: number;
+  revisedContractAmount: unknown;
+  approvalDate: Date;
+  description: string;
+};
+
+function VOsTab({
+  projectId,
+  vos,
+  canAdd,
+  status,
+  archived,
+}: {
+  projectId: string;
+  vos: VORow[];
+  canAdd: boolean;
+  status: "RUNNING" | "COMPLETED";
+  archived: boolean;
+}) {
+  return (
+    <section className="flex flex-col gap-4">
+      {vos.length === 0 ? (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-10 text-center text-sm text-white/50">
+          No variation orders yet.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-white/50">
+              <tr>
+                <th className="px-4 py-3">#</th>
+                <th className="px-4 py-3">Approval date</th>
+                <th className="px-4 py-3 text-right">Revised contract amount</th>
+                <th className="px-4 py-3">Description</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {vos.map((vo) => (
+                <tr key={vo.id}>
+                  <td className="px-4 py-3 font-medium text-white">VO-{vo.voNumber}</td>
+                  <td className="px-4 py-3 text-white/70">{formatBSDate(vo.approvalDate, "short")}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-white/80">
+                    {formatNepaliCurrency(vo.revisedContractAmount as string)}
+                  </td>
+                  <td className="px-4 py-3 text-white/70">{vo.description}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {canAdd ? (
+        <VOAddForm projectId={projectId} />
+      ) : (
+        <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/50">
+          Adding VOs is disabled because the project is{" "}
+          {archived ? "archived" : status === "COMPLETED" ? "completed" : "not running"}.
+        </p>
+      )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EoTs tab
+// ---------------------------------------------------------------------------
+
+type EoTRow = {
+  id: string;
+  eotNumber: number;
+  extendedToDate: Date;
+  approvalDate: Date;
+  reason: string;
+};
+
+function EoTsTab({
+  projectId,
+  eots,
+  intendedCompletionDate,
+  canAdd,
+  status,
+  archived,
+}: {
+  projectId: string;
+  eots: EoTRow[];
+  intendedCompletionDate: Date;
+  canAdd: boolean;
+  status: "RUNNING" | "COMPLETED";
+  archived: boolean;
+}) {
+  // Compute days-added per row relative to its predecessor (or intended date).
+  const rows = eots.map((eot, idx) => {
+    const prev = idx === 0 ? intendedCompletionDate : eots[idx - 1]!.extendedToDate;
+    const days = Math.round(
+      (eot.extendedToDate.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    return { ...eot, days };
+  });
+
+  const latestDateISO =
+    (eots.at(-1)?.extendedToDate ?? intendedCompletionDate).toISOString().slice(0, 10);
+
+  return (
+    <section className="flex flex-col gap-4">
+      {rows.length === 0 ? (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-10 text-center text-sm text-white/50">
+          No extensions of time yet.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-white/50">
+              <tr>
+                <th className="px-4 py-3">#</th>
+                <th className="px-4 py-3">Extended to</th>
+                <th className="px-4 py-3">Approval date</th>
+                <th className="px-4 py-3 text-right">Days added</th>
+                <th className="px-4 py-3">Reason</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {rows.map((eot) => (
+                <tr key={eot.id}>
+                  <td className="px-4 py-3 font-medium text-white">EoT-{eot.eotNumber}</td>
+                  <td className="px-4 py-3 text-white/70">{formatBSDate(eot.extendedToDate, "short")}</td>
+                  <td className="px-4 py-3 text-white/70">{formatBSDate(eot.approvalDate, "short")}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-white/80">+{eot.days}</td>
+                  <td className="px-4 py-3 text-white/70">{eot.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {canAdd ? (
+        <EoTAddForm projectId={projectId} floorISO={latestDateISO} />
+      ) : (
+        <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/50">
+          Adding EoTs is disabled because the project is{" "}
+          {archived ? "archived" : status === "COMPLETED" ? "completed" : "not running"}.
+        </p>
+      )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Small UI helpers
+// ---------------------------------------------------------------------------
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
@@ -197,26 +486,6 @@ function Row({ k, v }: { k: string; v: string }) {
       <dt className="text-white/60">{k}</dt>
       <dd className="font-medium tabular-nums text-white/80">{v}</dd>
     </div>
-  );
-}
-
-function Tab({
-  children,
-  active,
-}: {
-  children: React.ReactNode;
-  active?: boolean;
-}) {
-  return (
-    <span
-      className={
-        active
-          ? "border-b-2 border-white px-3 py-2 text-white"
-          : "border-b-2 border-transparent px-3 py-2 text-white/40"
-      }
-    >
-      {children}
-    </span>
   );
 }
 

@@ -1,41 +1,6 @@
 import { z } from "zod";
 
-/** Empty string → undefined; otherwise pass through. */
-const emptyStringToUndefined = z.preprocess((v) => (v === "" ? undefined : v), z.unknown());
-
-/** Money entered as a string; must be a non-negative decimal. Empty → 0. */
-const moneyRequired = z.preprocess(
-  (v) => (v === "" || v === null || v === undefined ? "0" : v),
-  z
-    .string()
-    .regex(/^\d+(\.\d+)?$/, "Enter a non-negative number")
-    .refine((s) => Number.parseFloat(s) >= 0, { message: "Must be ≥ 0" }),
-);
-
-const moneyOptional = z.preprocess(
-  (v) => (v === "" || v === null || v === undefined ? undefined : v),
-  z
-    .string()
-    .regex(/^\d+(\.\d+)?$/, "Enter a non-negative number")
-    .optional(),
-);
-
-const percent = z.preprocess(
-  (v) => (v === "" || v === null || v === undefined ? "0" : v),
-  z
-    .string()
-    .regex(/^\d+(\.\d+)?$/, "Enter a number between 0 and 100")
-    .refine((s) => {
-      const n = Number.parseFloat(s);
-      return n >= 0 && n <= 100;
-    }, "Must be between 0 and 100"),
-);
-
-const adDate = z.preprocess((v) => {
-  if (v instanceof Date) return v;
-  if (typeof v === "string" && v.length > 0) return new Date(v);
-  return undefined;
-}, z.date());
+import { adDate, moneyOptional, moneyRequired, percent } from "./common";
 
 export const projectFormSchema = z.object({
   projectName: z.string().min(1, "Required").max(200),
@@ -73,7 +38,7 @@ export const projectFormSchema = z.object({
 export type ProjectFormValues = z.infer<typeof projectFormSchema>;
 
 export const projectIdSchema = z.object({ id: z.string().min(1) });
-export const projectReassignSchema = z.object({ id: z.string().min(1), engineerId: z.string().min(1) });
-
-/* Exporting the helper so unused-export linters stay quiet. */
-export { emptyStringToUndefined };
+export const projectReassignSchema = z.object({
+  id: z.string().min(1),
+  engineerId: z.string().min(1),
+});

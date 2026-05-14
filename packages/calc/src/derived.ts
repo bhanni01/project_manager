@@ -10,6 +10,7 @@ import {
 } from "./progress";
 import { currentFYSurplusDeficit } from "./budget";
 import { deriveStatusFlags } from "./status";
+import { totalEoTDays, totalRevisedCompletionDate } from "./time";
 import type { ProjectDerived, ProjectDerivedInputs } from "./types";
 
 export function computeProjectDerived(
@@ -50,9 +51,18 @@ export function computeProjectDerived(
     expectedPaymentTillFYEnd: input.expectedPaymentTillFYEnd,
   });
 
+  const revisedCompletionDate = totalRevisedCompletionDate({
+    intendedCompletionDate: input.intendedCompletionDate,
+    latestEoTDate: input.latestEoTDate,
+  });
+  const eotDays = totalEoTDays({
+    intendedCompletionDate: input.intendedCompletionDate,
+    latestEoTDate: input.latestEoTDate,
+  });
+
   const flags = deriveStatusFlags({
     status: input.status,
-    effectiveCompletionDate: input.latestEoTDate ?? input.intendedCompletionDate,
+    effectiveCompletionDate: revisedCompletionDate,
     today,
     physicalProgress: input.physicalProgress,
     financialProgress: overallFin,
@@ -63,6 +73,8 @@ export function computeProjectDerived(
   return {
     currentContractAmount: cca,
     totalRevisedCost: trc,
+    revisedCompletionDate,
+    totalEoTDays: eotDays,
     currentFYPaymentSoFar: fyPayment,
     currentFYAdvanceRecovered: fyAdvanceRecovered,
     effectiveMoneyOut: emo,

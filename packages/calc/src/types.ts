@@ -30,6 +30,8 @@ export interface ProjectDerivedInputs {
 export interface ProjectDerived {
   currentContractAmount: Decimal;
   totalRevisedCost: Decimal;
+  revisedCompletionDate: Date;
+  totalEoTDays: number;
   currentFYPaymentSoFar: Decimal;
   currentFYAdvanceRecovered: Decimal;
   effectiveMoneyOut: Decimal;

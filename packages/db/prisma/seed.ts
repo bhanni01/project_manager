@@ -143,6 +143,52 @@ async function main() {
     }
   }
 
+  // VOs + EoT on East-West Highway (idempotent)
+  const eastWest = await prisma.project.findFirst({
+    where: { projectName: "East-West Highway Section 7", engineerId: eng.id },
+  });
+  if (eastWest) {
+    const voSeed = [
+      {
+        voNumber: 1,
+        revisedContractAmount: "130000000",
+        approvalDate: new Date("2025-03-15"),
+        description: "Additional drainage works",
+      },
+      {
+        voNumber: 2,
+        revisedContractAmount: "135000000",
+        approvalDate: new Date("2025-10-01"),
+        description: "Embankment reinforcement after monsoon",
+      },
+    ];
+    for (const v of voSeed) {
+      const existing = await prisma.variationOrder.findFirst({
+        where: { projectId: eastWest.id, voNumber: v.voNumber },
+      });
+      if (!existing) {
+        await prisma.variationOrder.create({
+          data: { projectId: eastWest.id, ...v },
+        });
+      }
+    }
+
+    const existingEoT = await prisma.extensionOfTime.findFirst({
+      where: { projectId: eastWest.id, eotNumber: 1 },
+    });
+    if (!existingEoT) {
+      await prisma.extensionOfTime.create({
+        data: {
+          projectId: eastWest.id,
+          eotNumber: 1,
+          extendedToDate: new Date("2027-09-30"),
+          approvalDate: new Date("2025-10-01"),
+          reason: "Monsoon delay carry-over",
+        },
+      });
+    }
+  }
+
   console.log("\nSeed complete.");
   console.log("  PM         →  pm@example.com   /  " + pmPassword);
   console.log("  Engineer   →  eng@example.com  /  " + engPassword);
