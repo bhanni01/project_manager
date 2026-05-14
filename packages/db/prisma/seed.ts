@@ -6,6 +6,7 @@ const prisma = new PrismaClient();
 async function main() {
   const pmPassword = "pm123";
   const engPassword = "eng123";
+  const eng2Password = "eng2123";
 
   const pm = await prisma.user.upsert({
     where: { email: "pm@example.com" },
@@ -29,7 +30,18 @@ async function main() {
     },
   });
 
-  await prisma.fiscalYear.upsert({
+  const eng2 = await prisma.user.upsert({
+    where: { email: "eng2@example.com" },
+    update: {},
+    create: {
+      email: "eng2@example.com",
+      name: "Engineer Two",
+      role: "ENGINEER",
+      passwordHash: await bcrypt.hash(eng2Password, 10),
+    },
+  });
+
+  const fy = await prisma.fiscalYear.upsert({
     where: { label: "2082/83" },
     update: {},
     create: {
@@ -40,10 +52,7 @@ async function main() {
     },
   });
 
-  // Audit USER_CREATE for each seeded user (idempotent: skipped on re-seed because
-  // upsert returns existing user without re-running create). We log only when the
-  // event hasn't been logged yet — keyed by (action, targetId).
-  for (const u of [pm, eng]) {
+  for (const u of [pm, eng, eng2]) {
     const existing = await prisma.auditEvent.findFirst({
       where: { action: "USER_CREATE", targetId: u.id },
     });
@@ -60,10 +69,86 @@ async function main() {
     }
   }
 
+  // Sample projects owned by Engineer Demo. Idempotent by projectName.
+  const sampleProjects = [
+    {
+      projectName: "East-West Highway Section 7",
+      infrastructureType: "ROAD" as const,
+      projectType: "MULTIYEAR" as const,
+      originalContractPrice: "125000000",
+      priceEscalation: "5000000",
+      contingencies: "2500000",
+      contractDate: new Date("2024-09-01"),
+      intendedCompletionDate: new Date("2027-06-30"),
+      paymentTillLastFY: "20000000",
+      paymentTillDate: "32500000",
+      totalAdvancePayment: "10000000",
+      outstandingAdvanceTillLastFY: "4000000",
+      outstandingAdvanceTillDate: "2500000",
+      currentFYBudget: "30000000",
+      expectedPaymentTillFYEnd: "28000000",
+      nextFYBudgetRequirement: "40000000",
+      physicalProgress: "28.50",
+      status: "RUNNING" as const,
+    },
+    {
+      projectName: "Karnali Bridge Approach",
+      infrastructureType: "BRIDGE" as const,
+      projectType: "SOURCE_APPROVED" as const,
+      originalContractPrice: "85000000",
+      priceEscalation: "3000000",
+      contingencies: "1500000",
+      contractDate: new Date("2025-01-12"),
+      intendedCompletionDate: new Date("2026-12-31"),
+      paymentTillLastFY: "0",
+      paymentTillDate: "12500000",
+      totalAdvancePayment: "5000000",
+      outstandingAdvanceTillLastFY: "0",
+      outstandingAdvanceTillDate: "3000000",
+      currentFYBudget: "20000000",
+      expectedPaymentTillFYEnd: "18000000",
+      nextFYBudgetRequirement: "35000000",
+      physicalProgress: "15.00",
+      status: "RUNNING" as const,
+    },
+    {
+      projectName: "District Road A12",
+      infrastructureType: "ROAD" as const,
+      projectType: "YEARLY_TENDERED" as const,
+      originalContractPrice: "12500000",
+      priceEscalation: null,
+      contingencies: null,
+      contractDate: new Date("2024-08-01"),
+      intendedCompletionDate: new Date("2025-06-30"),
+      completedAt: new Date("2025-06-15"),
+      paymentTillLastFY: "12500000",
+      paymentTillDate: "12500000",
+      totalAdvancePayment: "0",
+      outstandingAdvanceTillLastFY: "0",
+      outstandingAdvanceTillDate: "0",
+      currentFYBudget: "0",
+      physicalProgress: "100.00",
+      status: "COMPLETED" as const,
+    },
+  ];
+
+  for (const data of sampleProjects) {
+    const existing = await prisma.project.findFirst({
+      where: { projectName: data.projectName, engineerId: eng.id },
+    });
+    if (!existing) {
+      await prisma.project.create({
+        data: { ...data, engineerId: eng.id, fiscalYearId: fy.id },
+      });
+    }
+  }
+
   console.log("\nSeed complete.");
-  console.log("  PM        →  pm@example.com  /  " + pmPassword);
-  console.log("  Engineer  →  eng@example.com /  " + engPassword);
-  console.log("  Current FY → 2082/83\n");
+  console.log("  PM         →  pm@example.com   /  " + pmPassword);
+  console.log("  Engineer   →  eng@example.com  /  " + engPassword);
+  console.log("  Engineer 2 →  eng2@example.com /  " + eng2Password);
+  console.log("  Current FY → 2082/83");
+  console.log("  Sample projects: 3 (owned by Engineer Demo)\n");
 }
 
 main()

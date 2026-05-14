@@ -14,8 +14,16 @@
     "build": "echo \"no build yet\" && exit 0",
     "clean": "rm -rf .turbo dist"
   },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "dependencies": {
+    "lucide-react": "^0.460.0",
+    "nepali-date-converter": "^3.4.0"
+  },
   "devDependencies": {
     "@pt/config": "workspace:*",
+    "@types/react": "^19.0.0",
     "@typescript-eslint/eslint-plugin": "^8.18.0",
     "@typescript-eslint/parser": "^8.18.0",
     "eslint": "^8.57.1",
