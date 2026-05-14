@@ -44,6 +44,10 @@ coverage/
 # TypeScript
 *.tsbuildinfo
 
-# Project-local docs and Claude config (not for git)
+# Project-local docs and Claude/AI agent config (not for git)
 .claude/
 docs/
+AGENTS.md
+CLAUDE.md
+**/AGENTS.md
+**/CLAUDE.md
