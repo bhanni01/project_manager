@@ -30,6 +30,7 @@ export default async function AuthedLayout({
           <NavLink href="/projects">Projects</NavLink>
           <NavLink href="/projects/completed">Completed</NavLink>
           {isPM && <NavLink href="/projects/archive">Archive</NavLink>}
+          {isPM && <NavLink href="/users">Users</NavLink>}
 
           <div className="ml-auto flex items-center gap-3 text-white/60">
             <span className="hidden sm:inline">
