@@ -3,13 +3,11 @@ import Link from "next/link";
 import { prisma } from "@pt/db";
 import { formatBSDate } from "@pt/shared";
 
+import { FlashToast } from "@/components/flash-toast";
 import { requireRole } from "@/lib/auth/guards";
 
-export default async function FiscalYearPage(props: {
-  searchParams: Promise<{ rolled?: string }>;
-}) {
+export default async function FiscalYearPage() {
   await requireRole("PROJECT_MANAGER");
-  const { rolled } = await props.searchParams;
 
   const fiscalYears = await prisma.fiscalYear.findMany({
     orderBy: { startDate: "desc" },
@@ -68,16 +66,11 @@ export default async function FiscalYearPage(props: {
         </div>
       </header>
 
-      {rolled && (
-        <p className="rounded-md border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">
-          Rolled over. New current fiscal year is{" "}
-          <strong className="font-semibold">{rolled}</strong>.
-        </p>
-      )}
+      <FlashToast />
 
       <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5">
         <table className="w-full min-w-[720px] text-sm">
-          <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-white/50">
+          <thead className="sticky-thead bg-white/[0.04] text-left text-xs uppercase tracking-wider text-white/50">
             <tr>
               <th className="px-4 py-3">Label</th>
               <th className="px-4 py-3">Start (BS)</th>

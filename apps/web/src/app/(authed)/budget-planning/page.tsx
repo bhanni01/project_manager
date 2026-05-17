@@ -105,7 +105,7 @@ export default async function BudgetPlanningPage(props: {
 
       <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5">
         <table className="w-full min-w-[960px] text-sm">
-          <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-white/50">
+          <thead className="sticky-thead bg-white/[0.04] text-left text-xs uppercase tracking-wider text-white/50">
             <tr>
               <th className="px-4 py-3">Project</th>
               <th className="px-4 py-3">Engineer</th>

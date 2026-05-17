@@ -1,24 +1,80 @@
 @import "tailwindcss";
 
+/* ------------------------------------------------------------------ */
+/* Tailwind theme — fonts and color tokens                            */
+/* ------------------------------------------------------------------ */
+
 @theme inline {
   --font-sans: var(--font-inter);
   --font-display: var(--font-space-grotesk);
 }
 
-:root {
-  --background: #0a0f1c;
-  --foreground: #e6edf3;
+@theme {
+  /* Tailwind generates `bg-canvas`, `text-fg`, `border-edge` etc from these. */
+  --color-canvas: hsl(var(--c-canvas));
+  --color-surface: hsl(var(--c-surface));
+  --color-fg: hsl(var(--c-fg));
+  --color-fg-muted: hsl(var(--c-fg-muted));
+  --color-edge: hsl(var(--c-edge));
+  --color-accent: hsl(var(--c-accent-from));
+  --color-accent-to: hsl(var(--c-accent-to));
 }
+
+/* ------------------------------------------------------------------ */
+/* Light theme (default) + Dark theme tokens                           */
+/* ------------------------------------------------------------------ */
+
+:root {
+  --c-canvas: 220 20% 96%;
+  --c-surface: 0 0% 100%;
+  --c-fg: 222 47% 11%;
+  --c-fg-muted: 220 9% 46%;
+  --c-edge: 220 13% 88%;
+  --c-accent-from: 192 100% 42%;
+  --c-accent-to: 270 95% 60%;
+  --glow: 0 0 30px hsl(var(--c-accent-from) / 0.18);
+  --glass-bg: 255 255 255 / 0.72;
+  --glass-border: 220 13% 90% / 1;
+}
+
+.dark {
+  --c-canvas: 230 35% 7%;
+  --c-surface: 230 30% 12%;
+  --c-fg: 210 20% 98%;
+  --c-fg-muted: 220 9% 65%;
+  --c-edge: 0 0% 100% / 0.1;
+  --c-accent-from: 192 100% 50%;
+  --c-accent-to: 270 95% 65%;
+  --glow: 0 0 30px hsl(var(--c-accent-from) / 0.25);
+  --glass-bg: 255 255 255 / 0.05;
+  --glass-border: 255 255 255 / 0.08;
+}
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
 
 html,
 body {
-  background: var(--background);
-  color: var(--foreground);
+  color: hsl(var(--c-fg));
+  font-variant-numeric: tabular-nums;
 }
 
 body {
   font-family: var(--font-inter), Inter, system-ui, sans-serif;
-  font-feature-settings: "tnum" 1, "cv11" 1;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, hsl(var(--c-accent-from) / 0.08), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 100%, hsl(var(--c-accent-to) / 0.06), transparent 60%),
+    hsl(var(--c-canvas));
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+.dark body {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, hsl(var(--c-accent-from) / 0.18), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 100%, hsl(var(--c-accent-to) / 0.15), transparent 60%),
+    radial-gradient(ellipse at top, hsl(220 50% 12%), hsl(230 60% 5%));
 }
 
 h1,
@@ -26,4 +82,54 @@ h2,
 h3,
 h4 {
   font-family: var(--font-space-grotesk), "Space Grotesk", sans-serif;
+}
+
+/* ------------------------------------------------------------------ */
+/* Utility classes                                                     */
+/* ------------------------------------------------------------------ */
+
+.glass {
+  background: hsl(var(--glass-bg));
+  border: 1px solid hsl(var(--glass-border));
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+.accent-gradient {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--c-accent-from)),
+    hsl(var(--c-accent-to))
+  );
+}
+
+.accent-gradient-text {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--c-accent-from)),
+    hsl(var(--c-accent-to))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.glow {
+  transition: box-shadow 200ms ease;
+}
+.glow:hover {
+  box-shadow: var(--glow);
+}
+
+/* Sticky table headers — apply with `class="sticky-thead"` on <thead>. */
+.sticky-thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: hsl(var(--c-surface));
+}
+
+.dark .sticky-thead {
+  background: hsl(230 30% 12% / 0.95);
+  backdrop-filter: blur(8px);
 }

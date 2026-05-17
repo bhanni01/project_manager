@@ -81,7 +81,7 @@ export default async function FiscalYearPreviewPage(props: {
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[960px] text-sm">
-            <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-white/50">
+            <thead className="sticky-thead bg-white/[0.04] text-left text-xs uppercase tracking-wider text-white/50">
               <tr>
                 <th className="px-4 py-3">Project</th>
                 <th className="px-4 py-3">Engineer</th>

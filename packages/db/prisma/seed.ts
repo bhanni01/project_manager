@@ -202,6 +202,63 @@ async function main() {
     }
   }
 
+  // Archived Bridge multiyear project (CLAUDE.md §13.3 last item).
+  const trishuli = await prisma.project.findFirst({
+    where: { projectName: "Trishuli River Bridge", engineerId: eng.id },
+  });
+  if (!trishuli) {
+    await prisma.project.create({
+      data: {
+        projectName: "Trishuli River Bridge",
+        infrastructureType: "BRIDGE",
+        projectType: "MULTIYEAR",
+        status: "COMPLETED",
+        isArchived: true,
+        archivedAt: new Date("2025-06-30"),
+        archivedById: pm.id,
+        completedAt: new Date("2025-05-15"),
+        engineerId: eng.id,
+        fiscalYearId: closedFY.id,
+        originalContractPrice: "45000000",
+        priceEscalation: "1500000",
+        contingencies: "0",
+        contractDate: new Date("2023-09-01"),
+        intendedCompletionDate: new Date("2025-03-31"),
+        paymentTillLastFY: "30000000",
+        paymentTillDate: "46500000",
+        totalAdvancePayment: "0",
+        outstandingAdvanceTillLastFY: "0",
+        outstandingAdvanceTillDate: "0",
+        currentFYBudget: "0",
+        physicalProgress: "100.00",
+      },
+    });
+  }
+  const trishuliRow = await prisma.project.findFirst({
+    where: { projectName: "Trishuli River Bridge", engineerId: eng.id },
+  });
+  if (trishuliRow) {
+    const existing = await prisma.fiscalYearSnapshot.findFirst({
+      where: { projectId: trishuliRow.id, fiscalYearId: closedFY.id },
+    });
+    if (!existing) {
+      await prisma.fiscalYearSnapshot.create({
+        data: {
+          projectId: trishuliRow.id,
+          fiscalYearId: closedFY.id,
+          openingPayment: "30000000",
+          closingPayment: "46500000",
+          fyPayment: "16500000",
+          fyBudget: "18000000",
+          fyAdvanceRecovered: "0",
+          physicalProgress: "100.00",
+          financialProgress: "100.00",
+          surplusDeficit: "1500000",
+        },
+      });
+    }
+  }
+
   // Closed FY 2081/82 snapshots for the 3 sample projects (idempotent via the
   // (projectId, fiscalYearId) unique constraint).
   const sampleProjectNames = [
@@ -243,7 +300,7 @@ async function main() {
   console.log("  Engineer 2 →  eng2@example.com /  " + eng2Password);
   console.log("  Closed  FY → 2081/82");
   console.log("  Current FY → 2082/83");
-  console.log("  Sample projects: 3 (owned by Engineer Demo); 3 snapshots in FY 2081/82\n");
+  console.log("  Sample projects: 4 (3 active + 1 archived; all owned by Engineer Demo); 3 snapshots in FY 2081/82 + Trishuli snapshot\n");
 }
 
 main()

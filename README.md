@@ -33,6 +33,11 @@ pnpm dev                    # starts the Next.js dev server at http://localhost:
 | `pnpm typecheck` | Type-check all packages              |
 | `pnpm test`      | Run all unit tests                   |
 
+## Documentation
+
+- [User Guide](./guides/USER_GUIDE.md) — for engineers: login, project creation, VOs/EoTs, payments, completion, Excel reports.
+- [PM Admin Guide](./guides/PM_ADMIN_GUIDE.md) — for the Project Manager: user provisioning, role changes, password resets, reassigning projects, fiscal year rollover, archive/restore, reporting hub.
+
 ## Repository layout
 
 ```

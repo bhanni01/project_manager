@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { prisma } from "@pt/db";
 
+import { FlashToast } from "@/components/flash-toast";
 import { TempPasswordBanner } from "@/components/temp-password-banner";
 import { requireRole } from "@/lib/auth/guards";
 import {
@@ -14,29 +15,14 @@ import {
 
 export default async function EditUserPage(props: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
   const actor = await requireRole("PROJECT_MANAGER");
   const { id } = await props.params;
-  const { error, saved } = await props.searchParams;
 
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) notFound();
 
   const isSelf = user.id === actor.id;
-
-  const errorMessage =
-    error === "self_role_change"
-      ? "You cannot change your own role."
-      : error === "self_deactivate"
-        ? "You cannot deactivate yourself."
-        : error === "last_pm"
-          ? "Cannot demote or deactivate the only active project manager."
-          : error === "not_found"
-            ? "User not found."
-            : error
-              ? "Something went wrong."
-              : null;
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-10">
@@ -53,20 +39,14 @@ export default async function EditUserPage(props: {
       </header>
 
       <TempPasswordBanner />
-
-      {saved && (
-        <p className="rounded-md border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">
-          Saved.
-        </p>
-      )}
-      {errorMessage && (
-        <p
-          role="alert"
-          className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300"
-        >
-          {errorMessage}
-        </p>
-      )}
+      <FlashToast
+        messages={{
+          self_role_change: "You cannot change your own role.",
+          self_deactivate: "You cannot deactivate yourself.",
+          last_pm: "Cannot demote or deactivate the only active project manager.",
+          not_found: "User not found.",
+        }}
+      />
 
       <form
         action={updateUserAction}

@@ -5,6 +5,7 @@ import { computeProjectDerived } from "@pt/calc";
 import { formatBSDate, formatNepaliCurrency, formatPercent } from "@pt/shared";
 
 import { EoTAddForm } from "@/components/eot-add-form";
+import { FlashToast } from "@/components/flash-toast";
 import { VOAddForm } from "@/components/vo-add-form";
 import { requireUser } from "@/lib/auth/guards";
 import { findScopedProjectOr404 } from "@/lib/project/scope";
@@ -19,11 +20,11 @@ const TAB_KEYS: TabKey[] = ["summary", "vos", "eots", "history"];
 
 export default async function ProjectDetailPage(props: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; error?: string; saved?: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const user = await requireUser();
   const { id } = await props.params;
-  const { tab: tabParam, error, saved } = await props.searchParams;
+  const { tab: tabParam } = await props.searchParams;
   const tab: TabKey = (TAB_KEYS as string[]).includes(tabParam ?? "")
     ? (tabParam as TabKey)
     : "summary";
@@ -206,19 +207,13 @@ export default async function ProjectDetailPage(props: {
         </TabLink>
       </nav>
 
-      {saved && (
-        <p className="rounded-md border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">
-          Saved.
-        </p>
-      )}
-      {error && (
-        <p
-          role="alert"
-          className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300"
-        >
-          {errorMessage(error)}
-        </p>
-      )}
+      <FlashToast
+        messages={{
+          not_running: "VOs and EoTs can only be added while the project is Running.",
+          eot_too_early:
+            "Extension date must be later than the previous EoT (or intended completion if none).",
+        }}
+      />
 
       {tab === "summary" && (
         <SummaryTab project={project} derived={derived} />
@@ -262,17 +257,6 @@ function TabLink({
       {children}
     </Link>
   );
-}
-
-function errorMessage(code: string): string {
-  switch (code) {
-    case "not_running":
-      return "VOs and EoTs can only be added while the project is Running.";
-    case "eot_too_early":
-      return "Extension date must be later than the previous EoT (or intended completion if none).";
-    default:
-      return "Something went wrong.";
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -355,7 +339,7 @@ function VOsTab({
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5">
           <table className="w-full min-w-[640px] text-sm">
-            <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-white/50">
+            <thead className="sticky-thead bg-white/[0.04] text-left text-xs uppercase tracking-wider text-white/50">
               <tr>
                 <th className="px-4 py-3">#</th>
                 <th className="px-4 py-3">Approval date</th>
@@ -439,7 +423,7 @@ function EoTsTab({
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5">
           <table className="w-full min-w-[640px] text-sm">
-            <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-white/50">
+            <thead className="sticky-thead bg-white/[0.04] text-left text-xs uppercase tracking-wider text-white/50">
               <tr>
                 <th className="px-4 py-3">#</th>
                 <th className="px-4 py-3">Extended to</th>
@@ -575,7 +559,7 @@ function HistoryTab({ snapshots }: { snapshots: SnapshotRow[] }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5">
       <table className="w-full min-w-[960px] text-sm">
-        <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-white/50">
+        <thead className="sticky-thead bg-white/[0.04] text-left text-xs uppercase tracking-wider text-white/50">
           <tr>
             <th className="px-4 py-3">FY</th>
             <th className="px-4 py-3 text-right">Opening payment</th>
