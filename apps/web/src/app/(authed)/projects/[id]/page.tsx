@@ -30,7 +30,7 @@ export default async function ProjectDetailPage(props: {
 
   const project = await findScopedProjectOr404(user, id);
 
-  const [engineer, vos, eots] = await Promise.all([
+  const [engineer, vos, eots, snapshots] = await Promise.all([
     prisma.user.findUnique({
       where: { id: project.engineerId },
       select: { name: true, email: true },
@@ -42,6 +42,11 @@ export default async function ProjectDetailPage(props: {
     prisma.extensionOfTime.findMany({
       where: { projectId: project.id },
       orderBy: { eotNumber: "asc" },
+    }),
+    prisma.fiscalYearSnapshot.findMany({
+      where: { projectId: project.id },
+      include: { fiscalYear: { select: { label: true, startDate: true } } },
+      orderBy: { fiscalYear: { startDate: "desc" } },
     }),
   ]);
 
@@ -135,6 +140,13 @@ export default async function ProjectDetailPage(props: {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={`/api/reports/single-project/${project.id}`}
+            download
+            className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm hover:bg-white/10"
+          >
+            Download Excel
+          </a>
           {canEdit && (
             <Link
               href={`/projects/${project.id}/edit`}
@@ -224,11 +236,7 @@ export default async function ProjectDetailPage(props: {
           archived={project.isArchived}
         />
       )}
-      {tab === "history" && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-white/60">
-          FY history lands in Step 6 (fiscal year rollover).
-        </div>
-      )}
+      {tab === "history" && <HistoryTab snapshots={snapshots} />}
     </div>
   );
 }
@@ -535,5 +543,83 @@ function StatusPill({
     <span className="rounded-md border border-emerald-400/40 bg-emerald-400/10 px-2 py-0.5 text-xs text-emerald-200">
       Running
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// FY history tab
+// ---------------------------------------------------------------------------
+
+type SnapshotRow = {
+  id: string;
+  fiscalYear: { label: string };
+  openingPayment: unknown;
+  closingPayment: unknown;
+  fyPayment: unknown;
+  fyBudget: unknown;
+  fyAdvanceRecovered: unknown;
+  physicalProgress: unknown;
+  financialProgress: unknown;
+  surplusDeficit: unknown;
+};
+
+function HistoryTab({ snapshots }: { snapshots: SnapshotRow[] }) {
+  if (snapshots.length === 0) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-10 text-center text-sm text-white/50">
+        No snapshots yet. The first one lands after the PM rolls over the fiscal year.
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5">
+      <table className="w-full min-w-[960px] text-sm">
+        <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-white/50">
+          <tr>
+            <th className="px-4 py-3">FY</th>
+            <th className="px-4 py-3 text-right">Opening payment</th>
+            <th className="px-4 py-3 text-right">Closing payment</th>
+            <th className="px-4 py-3 text-right">FY payment</th>
+            <th className="px-4 py-3 text-right">FY budget</th>
+            <th className="px-4 py-3 text-right">Advance recovered</th>
+            <th className="px-4 py-3 text-right">Physical %</th>
+            <th className="px-4 py-3 text-right">Financial %</th>
+            <th className="px-4 py-3 text-right">Surplus / deficit</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-white/5">
+          {snapshots.map((s) => (
+            <tr key={s.id}>
+              <td className="px-4 py-3 font-medium text-white">{s.fiscalYear.label}</td>
+              <td className="px-4 py-3 text-right tabular-nums text-white/80">
+                {formatNepaliCurrency(s.openingPayment as string)}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums text-white/80">
+                {formatNepaliCurrency(s.closingPayment as string)}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums text-white/80">
+                {formatNepaliCurrency(s.fyPayment as string)}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums text-white/80">
+                {formatNepaliCurrency(s.fyBudget as string)}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums text-white/80">
+                {formatNepaliCurrency(s.fyAdvanceRecovered as string)}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums text-white/80">
+                {formatPercent(s.physicalProgress as string)}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums text-white/80">
+                {formatPercent(s.financialProgress as string)}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums text-white/80">
+                {formatNepaliCurrency(s.surplusDeficit as string)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

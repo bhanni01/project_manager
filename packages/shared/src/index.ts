@@ -7,3 +7,4 @@ export * from "./validators/project";
 export * from "./validators/user";
 export * from "./validators/vo";
 export * from "./validators/eot";
+export * from "./validators/fiscal-year";

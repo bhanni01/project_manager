@@ -41,6 +41,19 @@ async function main() {
     },
   });
 
+  const closedFY = await prisma.fiscalYear.upsert({
+    where: { label: "2081/82" },
+    update: {},
+    create: {
+      label: "2081/82",
+      startDate: new Date("2024-07-16"),
+      endDate: new Date("2025-07-15"),
+      isCurrent: false,
+      closedAt: new Date("2025-07-16"),
+      closedById: pm.id,
+    },
+  });
+
   const fy = await prisma.fiscalYear.upsert({
     where: { label: "2082/83" },
     update: {},
@@ -189,12 +202,48 @@ async function main() {
     }
   }
 
+  // Closed FY 2081/82 snapshots for the 3 sample projects (idempotent via the
+  // (projectId, fiscalYearId) unique constraint).
+  const sampleProjectNames = [
+    "East-West Highway Section 7",
+    "Karnali Bridge Approach",
+    "District Road A12",
+  ];
+  for (const name of sampleProjectNames) {
+    const project = await prisma.project.findFirst({
+      where: { projectName: name, engineerId: eng.id },
+    });
+    if (!project) continue;
+    const existing = await prisma.fiscalYearSnapshot.findFirst({
+      where: { projectId: project.id, fiscalYearId: closedFY.id },
+    });
+    if (!existing) {
+      // Use seeded paymentTillLastFY as the closing-payment of FY 2081/82.
+      const closing = project.paymentTillLastFY.toString();
+      await prisma.fiscalYearSnapshot.create({
+        data: {
+          projectId: project.id,
+          fiscalYearId: closedFY.id,
+          openingPayment: "0",
+          closingPayment: closing,
+          fyPayment: closing,
+          fyBudget: project.currentFYBudget.toString(),
+          fyAdvanceRecovered: "0",
+          physicalProgress: project.physicalProgress.toString(),
+          financialProgress: "0",
+          surplusDeficit: "0",
+        },
+      });
+    }
+  }
+
   console.log("\nSeed complete.");
   console.log("  PM         →  pm@example.com   /  " + pmPassword);
   console.log("  Engineer   →  eng@example.com  /  " + engPassword);
   console.log("  Engineer 2 →  eng2@example.com /  " + eng2Password);
+  console.log("  Closed  FY → 2081/82");
   console.log("  Current FY → 2082/83");
-  console.log("  Sample projects: 3 (owned by Engineer Demo)\n");
+  console.log("  Sample projects: 3 (owned by Engineer Demo); 3 snapshots in FY 2081/82\n");
 }
 
 main()
